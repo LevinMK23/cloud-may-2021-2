@@ -2,21 +2,27 @@ package nio;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
-import java.nio.Buffer;
 import java.nio.ByteBuffer;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.Iterator;
 import java.util.Set;
+import java.util.stream.Collectors;
 
+import lombok.extern.slf4j.Slf4j;
+
+@Slf4j
 public class Server {
 
     private ByteBuffer buffer;
     private ServerSocketChannel serverSocketChannel;
     private Selector selector;
+    private String dir = "serverDir";
 
     public Server() throws Exception {
         buffer = ByteBuffer.allocate(100);
@@ -25,7 +31,7 @@ public class Server {
         serverSocketChannel.configureBlocking(false);
         selector = Selector.open();
         serverSocketChannel.register(selector, SelectionKey.OP_ACCEPT);
-
+        log.debug("Server started!");
         while (serverSocketChannel.isOpen()) {
 
             selector.select(); // block
@@ -47,34 +53,56 @@ public class Server {
         }
     }
 
-    private void handleRead(SelectionKey key) throws IOException {
+    private void handleRead(SelectionKey key) {
         SocketChannel channel = (SocketChannel) key.channel();
-        StringBuilder s = new StringBuilder();
-        int r;
-        while (true) {
-            r = channel.read(buffer);
-            if (r == -1) {
-                channel.close();
-                return;
+        try {
+            StringBuilder s = new StringBuilder();
+            int r;
+            while (true) {
+                r = channel.read(buffer);
+                if (r == -1) {
+                    channel.close();
+                    return;
+                }
+                if (r == 0) {
+                    break;
+                }
+                buffer.flip();
+                while (buffer.hasRemaining()) {
+                    s.append((char) buffer.get());
+                }
+                buffer.clear();
             }
-            if (r == 0) {
-                break;
-            }
-            buffer.flip();
-            while (buffer.hasRemaining()) {
-                s.append((char) buffer.get());
-            }
-            buffer.clear();
-         }
 
-        String message = s.toString();
+            String message = s.toString().trim();
+            log.debug("received message: {}", message);
 
-        channel.write(ByteBuffer.wrap(message.getBytes(StandardCharsets.UTF_8)));
+            if (message.equals("ls")) {
+                String files = Files.list(Paths.get(dir))
+                        .map(p -> p.getFileName().toString())
+                        .collect(Collectors.joining("\n")) + "\n\r";
+                channel.write(ByteBuffer.wrap(files.getBytes(StandardCharsets.UTF_8)));
+            } else if (message.startsWith("cat ")) {
+                String fileName = message.replaceAll("cat ", "");
+                String data = String.join("", Files.readAllLines(Paths.get(dir, fileName))) + "\n\r";
+                channel.write(ByteBuffer.wrap(data.getBytes(StandardCharsets.UTF_8)));
+            } else {
+                channel.write(ByteBuffer.wrap("Wrong command\n\r".getBytes(StandardCharsets.UTF_8)));
+            }
+        } catch (Exception e) {
+            log.error("Exception while read: ", e);
+            try {
+                channel.write(ByteBuffer.wrap("Wrong command\n\r".getBytes(StandardCharsets.UTF_8)));
+            } catch (IOException ioException) {
+                log.error("Exception while write response: ", e);
+            }
+        }
     }
 
     private void handleAccept(SelectionKey key) throws IOException {
         SocketChannel channel = serverSocketChannel.accept();
-        channel.write(ByteBuffer.wrap("Welcome to server!".getBytes(StandardCharsets.UTF_8)));
+        log.debug("Client accepted");
+        channel.write(ByteBuffer.wrap("Welcome to server!\n\r".getBytes(StandardCharsets.UTF_8)));
         channel.configureBlocking(false);
         channel.register(selector, SelectionKey.OP_READ, "Hello world");
     }
