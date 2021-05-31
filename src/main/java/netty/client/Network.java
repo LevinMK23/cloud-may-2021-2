@@ -11,6 +11,7 @@ import io.netty.handler.codec.serialization.ClassResolvers;
 import io.netty.handler.codec.serialization.ObjectDecoder;
 import io.netty.handler.codec.serialization.ObjectEncoder;
 import lombok.extern.slf4j.Slf4j;
+import netty.AbstractCommand;
 import netty.Message;
 
 @Slf4j
@@ -37,6 +38,7 @@ public class Network {
                             }
                         });
                 ChannelFuture channelFuture = bootstrap.connect("localhost", 8189).sync();
+                sendMessage(new FilesListRequest());
                 channelFuture.channel().closeFuture().sync(); // block
             } catch (Exception e) {
                 log.error("e = ", e);
@@ -46,7 +48,7 @@ public class Network {
         }).start();
     }
 
-    public void sendMessage(Message message) {
+    public void sendMessage(AbstractCommand message) {
         socketChannel.writeAndFlush(message);
     }
 

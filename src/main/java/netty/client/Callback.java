@@ -1,8 +1,9 @@
 package netty.client;
 
+import netty.AbstractCommand;
 import netty.Message;
 
 @FunctionalInterface
 public interface Callback {
-    void call(Message message);
+    void call(AbstractCommand message);
 }
