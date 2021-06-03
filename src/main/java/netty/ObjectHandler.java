@@ -23,14 +23,16 @@ public class ObjectHandler extends SimpleChannelInboundHandler<AbstractCommand> 
 
     @Override
     protected void channelRead0(ChannelHandlerContext ctx, AbstractCommand message) throws Exception {
-        log.debug("received: {}", message);
         if (message instanceof FilesListRequest) {
+            log.debug("received: {}", message);
             ctx.writeAndFlush(getFiles());
         }
         if (message instanceof FileRequest) {
+            log.debug("received: {}", message);
             ctx.writeAndFlush(getFileMessage((FileRequest) message));
         }
         if (message instanceof FileMessage) {
+            log.debug("received fileMessage");
             saveFile((FileMessage) message);
         }
     }
